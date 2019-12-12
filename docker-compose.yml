@@ -1,0 +1,38 @@
+version: '3'
+services:
+  mysql:
+    container_name: mysql
+    hostname: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_USER: couponuser
+      MYSQL_PASS: 123456
+    image:  mysql
+    expose:
+      - "3306"
+    ports:
+      - "3306:3306"
+    volumes:
+      - "./sqldb/init:/docker-entrypoint-initdb.d/"
+      - "./sqldb/conf/my.cnf:/etc/my.cnf"
+    security_opt:
+      - seccomp:unconfined
+    command:
+      - --default_authentication_plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+  web:
+    build: ./web
+    container_name: web
+    hostname: web
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+    environment:
+      WEB_MYSQL_HOST: mysql:3306
+      WEB_MYSQL_USER: couponuser
+      WEB_MYSQL_PASSWORD: 123456
+    restart: always
+    command: ["./wait-for-it.sh","mysql:3306","--","sh","./run.sh"]
