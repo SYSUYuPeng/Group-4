@@ -5,7 +5,7 @@ from sqlalchemy.orm import relationship,sessionmaker,scoped_session
 import hashlib
 import random,string
 
-engine = create_engine('mysql://couponuser:123456@mysql/coupons')
+engine = create_engine('mysql://root:root@mysql:3306/coupons')
 Base = declarative_base()
 DBSession = scoped_session(sessionmaker(bind=engine))
 
