@@ -4,14 +4,14 @@ services:
     container_name: mysql
     hostname: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_ROOT_PASSWORD: "root"
       MYSQL_USER: couponuser
       MYSQL_PASS: 123456
     image:  mysql
     expose:
       - "3306"
     ports:
-      - "3306:3306"
+      - "23306:3306"
     volumes:
       - "./sqldb/init:/docker-entrypoint-initdb.d/"
       - "./sqldb/conf/my.cnf:/etc/my.cnf"
@@ -27,7 +27,7 @@ services:
     container_name: web
     hostname: web
     ports:
-      - "8000:8000"
+      - "20080:20080"
     depends_on:
       - mysql
     environment:
