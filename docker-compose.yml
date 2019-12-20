@@ -7,29 +7,38 @@ services:
       MYSQL_ROOT_PASSWORD: "root"
       MYSQL_USER: couponuser
       MYSQL_PASS: 123456
-    image: 19215047/mysql
+    image: 19215047/mysql:latest
     expose:
       - "3306"
     ports:
       - "23306:3306"
+    volumes:
+      - "./sqldb/init:/docker-entrypoint-initdb.d/"
+      - "./sqldb/conf/my.cnf:/etc/my.cnf"
     security_opt:
       - seccomp:unconfined
-    volumes:
-      - "./config/init:/docker-entrypoint-initdb.d/"
-      - "./config/conf/my.cnf:/etc/my.cnf"
     command:
       - --default_authentication_plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
 
+  redis:
+    image: 19215047/redis:latest
+    expose:
+      - "6379"
+    restart: always
+    container_name: redis
+    hostname: redis
+
   web:
+    image: 19215047/web:latest
     container_name: web
     hostname: web
-    image: 19215047/web
     ports:
       - "20080:20080"
     depends_on:
       - mysql
+      - redis
     environment:
       WEB_MYSQL_HOST: mysql:3306
       WEB_MYSQL_USER: couponuser
