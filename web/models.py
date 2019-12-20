@@ -5,7 +5,7 @@ from sqlalchemy.orm import relationship,sessionmaker,scoped_session
 import hashlib
 import random,string
 
-engine = create_engine('mysql://root:root@mysql:3306/coupons')
+engine = create_engine('mysql://couponuser:123456@localhost/coupons', pool_size=600)
 Base = declarative_base()
 DBSession = scoped_session(sessionmaker(bind=engine))
 
@@ -56,7 +56,7 @@ def md5(password):
 if __name__ == '__main__':
     Base.metadata.create_all(engine)
     exit()
-    # for final project no need to
+    # for final project no need to execute the following codes
     db=DBSession()
 
     for i in range(1,101):

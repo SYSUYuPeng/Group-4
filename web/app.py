@@ -2,8 +2,12 @@ from flask import Flask,request,jsonify
 from functools import wraps
 from models import DBSession,User,Coupon,md5
 import json,base64
+from redis import Redis,ConnectionPool
 
 app=Flask(__name__)
+pool=ConnectionPool(host='127.0.0.1',port=6379,db=0,decode_responses=True)
+rs = Redis(connection_pool=pool)
+
 
 def returnsalercoupons(db, username, page):
     coupons = db.query(Coupon).filter(Coupon.username == username).filter(Coupon.left > 0).offset((page-1)*20).limit(20).all()
@@ -111,7 +115,7 @@ def login():
         password = data.get("password")
     except Exception:
         response = jsonify(errMsg="wrong format")
-        response.status_code = 400
+        response.status_code = 401
         return response
 
     if username==None or password==None:
@@ -260,42 +264,69 @@ def acquire_coupons(username,couponname):
     auth_info=get_auth_info()
     if auth_info['kind']!=0:
         response = jsonify(errMsg='saler could not acquire a coupon')
-        response.status_code = 400
+        response.status_code = 204
         return response
 
     db=DBSession()
-    user=db.query(User).filter(User.username==username).first()
-    if not user or user.kind==0:
-        response = jsonify(errMsg="the username must be valid and a saler")
-        response.status_code = 400
+
+    user_kind=rs.get(username)
+    # user_kind=='2'means it does exist
+    if not user_kind:
+        user=db.query(User).filter(User.username==username).first()
+        if not user:
+            rs.set(username,2)
+            response = jsonify(errMsg="the username must be valid")
+            response.status_code = 204
+            DBSession.remove()
+            return response
+        if user.kind==0:
+            rs.set(username,0)
+            response = jsonify(errMsg="the username must be a saler")
+            response.status_code = 204
+            DBSession.remove()
+            return response
+        rs.set(username,1)
+    elif user_kind=='2':
+        response = jsonify(errMsg="the username must be valid(from redis)")
+        response.status_code = 204
+        DBSession.remove()
+        return response
+    elif user_kind=='0':
+        response = jsonify(errMsg="the username must be a saler(from redis)")
+        response.status_code = 204
         DBSession.remove()
         return response
 
-    # get the coupon of a saler
-    coupon=db.query(Coupon).filter(Coupon.username==username)\
-        .filter(Coupon.coupon_name == couponname).with_for_update().first()
-    if coupon and coupon.left>0:
-        db.add(Coupon(username=auth_info['username'],
-                      coupon_name=coupon.coupon_name,stock=coupon.stock,description=coupon.description))
-        coupon.left-=1
-        try:
-            db.commit()
-        except Exception:
-            # the user already has the coupon
-            response=jsonify(errMsg="already has the coupon")
-            response.status_code=400
+    key=auth_info['username']+"_"+couponname
+    if not rs.get(key):
+        # get the coupon of a saler
+        coupon=db.query(Coupon).filter(Coupon.username==username)\
+            .filter(Coupon.coupon_name == couponname).with_for_update().first()
+        if coupon and coupon.left>0:
+            db.add(Coupon(username=auth_info['username'],
+                          coupon_name=coupon.coupon_name,stock=coupon.stock,description=coupon.description))
+            coupon.left-=1
+            try:
+                db.commit()
+            except Exception:
+                # the user already has the coupon
+                rs.set(key,'has')
+                response=jsonify(errMsg="coupons acquired failed")
+                response.status_code=204
+                DBSession.remove()
+                return response
+            # acquire the coupon successfully
+            rs.set(key,'has')
+            response=jsonify(msg="coupon acquired successfully")
+            response.status_code=201
             DBSession.remove()
             return response
-        # acquire the coupon successfully
-        response=jsonify(msg="coupon acquired successfully")
-        response.status_code=201
-        DBSession.remove()
-        return response
-    response = jsonify(errMsg="invalid coupon_name or no left coupons")
-    response.status_code=400
+    # the key is in the redis, it means the customer has the coupon
+    response = jsonify(errMsg="coupons acquired failed(from redis)")
+    response.status_code=204
     DBSession.remove()
     return response
 
 
 if __name__=="__main__":
-    app.run(port=8000,debug=True)
+    app.run(port=20080,debug=True)
